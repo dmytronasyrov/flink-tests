@@ -7,6 +7,7 @@ import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.shaded.guava31.com.google.common.collect.Iterators;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.AllWindowedStream;
@@ -17,13 +18,20 @@ import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.assigners.*;
+import org.apache.flink.streaming.api.windowing.triggers.CountTrigger;
+import org.apache.flink.streaming.api.windowing.windows.GlobalWindow;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.flink.util.Collector;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.StreamSupport;
 
 // --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.time=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED
 
@@ -141,6 +149,88 @@ public class WindowFunctions {
         }
       });
     process1.print();
+
+    final AllWindowedStream<ServerEvent, TimeWindow> serverEventTimeWindowAllWindowedStream1 = serverEventSingleOutputStreamOperator.windowAll(SlidingEventTimeWindows.of(Duration.ofSeconds(3), Duration.ofSeconds(1)));
+    final SingleOutputStreamOperator<String> apply2 = serverEventTimeWindowAllWindowedStream1.apply(new AllWindowFunction<ServerEvent, String, TimeWindow>() {
+      @Override
+      public void apply(final TimeWindow timeWindow, final Iterable<ServerEvent> input, final Collector<String> collector) throws Exception {
+        int registeredEvents = 0;
+
+        for (ServerEvent event : input) {
+          if (event instanceof PlayerRegistered) {
+            registeredEvents++;
+          }
+        }
+
+        collector.collect(String.format("Window C [%d - %d] %d", timeWindow.getStart(), timeWindow.getEnd(), registeredEvents));
+      }
+    });
+    apply2.print();
+
+    final AllWindowedStream<ServerEvent, TimeWindow> serverEventTimeWindowAllWindowedStream2 = serverEventSingleOutputStreamOperator.windowAll(EventTimeSessionWindows.withDynamicGap(new SessionWindowTimeGapExtractor<ServerEvent>() {
+      @Override
+      public long extract(final ServerEvent serverEvent) {
+        return 1;
+      }
+    }));
+    final SingleOutputStreamOperator<String> apply3 = serverEventTimeWindowAllWindowedStream2.apply(new AllWindowFunction<ServerEvent, String, TimeWindow>() {
+      @Override
+      public void apply(final TimeWindow timeWindow, final Iterable<ServerEvent> input, final Collector<String> collector) throws Exception {
+        int registeredEvents = 0;
+
+        for (ServerEvent event : input) {
+          if (event instanceof PlayerRegistered) {
+            registeredEvents++;
+          }
+        }
+
+        collector.collect(String.format("Window D [%d - %d] %d", timeWindow.getStart(), timeWindow.getEnd(), registeredEvents));
+      }
+    });
+    apply3.print();
+
+    final SingleOutputStreamOperator<String> apply4 = serverEventSingleOutputStreamOperator
+      .windowAll(GlobalWindows.create())
+      .trigger(CountTrigger.<GlobalWindow>of(10))
+      .apply(new AllWindowFunction<ServerEvent, String, GlobalWindow>() {
+        @Override
+        public void apply(final GlobalWindow globalWindow, final Iterable<ServerEvent> input, final Collector<String> collector) throws Exception {
+          int registeredEvents = 0;
+
+          for (ServerEvent event : input) {
+            if (event instanceof PlayerRegistered) {
+              registeredEvents++;
+            }
+          }
+
+          collector.collect(String.format("Window E %s %d", globalWindow.toString(), registeredEvents));
+        }
+      });
+    apply4.print();
+
+    final SingleOutputStreamOperator<Tuple2<TimeWindow, Long>> apply5 = serverEventSingleOutputStreamOperator.filter(event -> event instanceof PlayerRegistered)
+      .windowAll(SlidingEventTimeWindows.of(Duration.ofSeconds(2), Duration.ofSeconds(1)))
+      .apply(new AllWindowFunction<ServerEvent, Tuple2<TimeWindow, Long>, TimeWindow>() {
+        @Override
+        public void apply(final TimeWindow timeWindow, final Iterable<ServerEvent> iterable, final Collector<Tuple2<TimeWindow, Long>> collector) throws Exception {
+          collector.collect(Tuple2.of(timeWindow, (long) Iterators.size(iterable.iterator())));
+        }
+      });
+    final ArrayList<Tuple2<TimeWindow, Long>> tuple2s = new ArrayList<>();
+    apply5.executeAndCollect().forEachRemaining(tuple2s::add);
+    apply5.print();
+
+    final Optional<Tuple2<TimeWindow, Long>> max = tuple2s.stream().max(new Comparator<Tuple2<TimeWindow, Long>>() {
+      @Override
+      public int compare(final Tuple2<TimeWindow, Long> o1, final Tuple2<TimeWindow, Long> o2) {
+        final Long field1 = o1.getField(1);
+        final Long field2 = o2.getField(1);
+        return field1 > field2 ? 1 : -1;
+      }
+    });
+    final TimeWindow window = max.get().getField(0);
+    final Long maxEvents = max.get().getField(1);
+    System.out.println(String.format("BEST WINDOW: %s with MAX EVENTS: %d", window, maxEvents));
 
     env.execute();
   }
