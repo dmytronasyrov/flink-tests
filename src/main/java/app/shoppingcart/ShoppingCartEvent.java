@@ -3,12 +3,19 @@ package app.shoppingcart;
 import java.time.Instant;
 
 public abstract class ShoppingCartEvent {
-  final String userId;
-  final Instant time;
+  String userId;
+  Instant time;
+  String sku;
+  Integer quantity;
 
-  public ShoppingCartEvent(final String userId, final Instant time) {
+  public ShoppingCartEvent(final String userId, final Instant time, final String sku, final Integer quantity) {
     this.userId = userId;
     this.time = time;
+    this.sku = sku;
+    this.quantity = quantity;
+  }
+
+  public ShoppingCartEvent() {
   }
 
   public String getUserId() {
@@ -17,5 +24,29 @@ public abstract class ShoppingCartEvent {
 
   public Instant getTime() {
     return time;
+  }
+
+  public String getSku() {
+    return sku;
+  }
+
+  public Integer getQuantity() {
+    return quantity;
+  }
+
+  public void setUserId(final String userId) {
+    this.userId = userId;
+  }
+
+  public void setTime(final Instant time) {
+    this.time = time;
+  }
+
+  public void setSku(final String sku) {
+    this.sku = sku;
+  }
+
+  public void setQuantity(final Integer quantity) {
+    this.quantity = quantity;
   }
 }

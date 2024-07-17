@@ -8,16 +8,19 @@ import java.util.List;
 import java.util.UUID;
 
 public class ShoppingCartEventsGenerator implements SourceFunction<ShoppingCartEvent> {
-  private final Integer sleepMsPerEvent;
-  private final Integer batchSize;
-  private final Instant baseInstant;
+  private Integer sleepMsPerEvent;
+  private Integer batchSize;
+  private Instant baseInstant;
   private boolean running = true;
-  private List<String> users = List.of("sasha", "masha", "dasha", "pasha", "vasja");
+  private static List<String> users = List.of("sasha", "masha", "dasha", "pasha", "vasja");
 
   public ShoppingCartEventsGenerator(Integer sleepMsPerEvent, Integer batchSize, Instant baseInstant) {
     this.sleepMsPerEvent = sleepMsPerEvent;
     this.batchSize = batchSize;
     this.baseInstant = baseInstant;
+  }
+
+  public ShoppingCartEventsGenerator() {
   }
 
   @Override
@@ -58,15 +61,55 @@ public class ShoppingCartEventsGenerator implements SourceFunction<ShoppingCartE
     return addToShoppingCartEvents;
   }
 
-  private String getRandomUser() {
+  public static String getRandomUser() {
     return users.get(random(0, users.size() - 1));
   }
 
-  private int random(int min, int max) {
+  private static int random(int min, int max) {
     return (int) ((Math.random() * (max - min)) + min);
   }
 
-  private int getRandomQuantity() {
+  private static int getRandomQuantity() {
     return random(0, 10);
+  }
+
+  public Integer getSleepMsPerEvent() {
+    return sleepMsPerEvent;
+  }
+
+  public void setSleepMsPerEvent(final Integer sleepMsPerEvent) {
+    this.sleepMsPerEvent = sleepMsPerEvent;
+  }
+
+  public Integer getBatchSize() {
+    return batchSize;
+  }
+
+  public void setBatchSize(final Integer batchSize) {
+    this.batchSize = batchSize;
+  }
+
+  public Instant getBaseInstant() {
+    return baseInstant;
+  }
+
+  public void setBaseInstant(final Instant baseInstant) {
+    this.baseInstant = baseInstant;
+  }
+
+  public boolean isRunning() {
+    return running;
+  }
+
+  public void setRunning(final boolean running) {
+    this.running = running;
+  }
+
+  public static List<String> getUsers() {
+    return users;
+  }
+
+  public static void setUsers(final List<String> users) {
+    ShoppingCartEventsGenerator.users = users;
   }
 }
