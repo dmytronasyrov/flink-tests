@@ -21,7 +21,7 @@ public class TimeBasedTransformations {
   private static final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
   private static final Instant baseInstant = Instant.parse("2022-02-15T00:00:00.000Z");
   private static final ShoppingCartEventsGenerator shoppingCartEvents = new ShoppingCartEventsGenerator(100, 5, baseInstant);
-  private final static DataStreamSource<ShoppingCartEvent> eventsStream = env.addSource(shoppingCartEvents);
+  private static final DataStreamSource<ShoppingCartEvent> eventsStream = env.addSource(shoppingCartEvents);
 
   public static void main(String[] args) throws Exception {
     eventTimeTumblingWindow();
