@@ -1,6 +1,8 @@
 package app;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,11 +10,16 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.DeserializationSchema;
+import org.apache.flink.api.common.serialization.SerializationSchema;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
+import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchemaBuilder;
+import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.operators.collect.CollectSinkFunction;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -25,16 +32,37 @@ public class KafkaIntegration {
   public static void main(String[] args) throws Exception {
     final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-    final KafkaSource<String> kafkaSource = KafkaSource.<String>builder()
-      .setBootstrapServers("http://kafka-data-broker-0.ludo.ninja:9400,http://kafka-data-broker-1.ludo.ninja:9401,http://kafka-data-broker-2.ludo.ninja:9402,http://kafka-data-broker-3.ludo.ninja:9403,http://kafka-data-broker-4.ludo.ninja:9404")
+    final KafkaSource<NftRank> kafkaSource = KafkaSource.<NftRank>builder()
+      .setBootstrapServers("kafka-data-broker-0.ludo.ninja:9400,kafka-data-broker-1.ludo.ninja:9401,kafka-data-broker-2.ludo.ninja:9402,kafka-data-broker-3.ludo.ninja:9403,kafka-data-broker-4.ludo.ninja:9404")
       .setTopics("rank-nft")
       .setGroupId("flink-dev")
       .setStartingOffsets(OffsetsInitializer.earliest())
       .setValueOnlyDeserializer((DeserializationSchema) new NftRankDeserializer())
       .build();
 
-    final DataStreamSource<String> source = env.fromSource(kafkaSource, WatermarkStrategy.noWatermarks(), "Kafka Source");
+    final DataStreamSource<NftRank> source = env.fromSource(kafkaSource, WatermarkStrategy.noWatermarks(), "Kafka Source");
     source.print();
+
+    final KafkaRecordSerializationSchema<NftRank> serializationSchema = KafkaRecordSerializationSchema.<NftRank>builder()
+      .setTopic("test-rank-nft")
+      .setValueSerializationSchema(new SerializationSchema<NftRank>() {
+        private final ObjectMapper objectMapper = new ObjectMapper();
+
+        @Override
+        public byte[] serialize(final NftRank nftRank) {
+          try {
+            return objectMapper.writeValueAsBytes(nftRank);
+          } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+          }
+        }
+      })
+      .build();
+    final KafkaSink<NftRank> sink = KafkaSink.<NftRank>builder()
+      .setBootstrapServers("http://kafka-data-broker-0.ludo.ninja:9400,http://kafka-data-broker-1.ludo.ninja:9401,http://kafka-data-broker-2.ludo.ninja:9402,http://kafka-data-broker-3.ludo.ninja:9403,http://kafka-data-broker-4.ludo.ninja:9404")
+      .setRecordSerializer(serializationSchema)
+      .build();
+    source.sinkTo(sink);
 
     env.execute();
   }
@@ -71,6 +99,7 @@ public class KafkaIntegration {
     }
   }
 
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
   public static final class NftRank {
     private Float rank;
     private Float rankRaw;
