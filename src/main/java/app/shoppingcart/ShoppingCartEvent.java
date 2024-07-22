@@ -49,4 +49,14 @@ public abstract class ShoppingCartEvent {
   public void setQuantity(final Integer quantity) {
     this.quantity = quantity;
   }
+
+  @Override
+  public String toString() {
+    return "ShoppingCartEvent{" +
+      "userId='" + userId + '\'' +
+      ", time=" + time +
+      ", sku='" + sku + '\'' +
+      ", quantity=" + quantity +
+      '}';
+  }
 }
